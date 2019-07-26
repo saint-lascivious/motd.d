@@ -1,0 +1,33 @@
+#!/bin/bash
+
+date=`date`
+load=`cat /proc/loadavg | awk '{print $1}'`
+ipv4_address=`ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'`
+ipv6_address=`ip -6 addr show eth0 | grep -oP '(?<=inet6\s)[\da-f:]+'`
+root_usage=`df -h / | awk '/\// {print $(NF-1)}'`
+memory_usage=`free -m | awk '/^Mem/ {printf("%u%%", 100*$3/$2);}' <(free -m)`
+swap_usage=`free -m | awk '/Swap/ { printf("%3.1f%%", $3/$2*100) }'`
+arch=`uname -m`
+platform=`uname -o`
+kernel=`uname -r`
+users=`users | wc -w`
+time=`uptime | grep -ohe 'up .*' | sed 's/,/\ hours/g' | awk '{ printf $2" "$3 }'`
+processes=`ps aux | wc -l`
+ 
+echo "Date: $date"
+echo
+echo "System Information"
+printf "Architecture:\t%s\n" $arch
+printf "Platform:\t%s\n" $platform
+printf "Kernel Version:\t%s\n" $kernel
+echo
+echo "Resource Information"
+printf "System Load:\t%s\n" $load
+printf "Memory Usage:\t%s\tSystem Uptime:\t%s\n" $memory_usage "$time"
+printf "Usage On /:\t%s\tSwap Usage:\t%s\n" $root_usage $swap_usage
+printf "Local Users:\t%s\tProcesses:\t%s\n" $users $processes
+echo
+echo "Network Information"
+printf "IPv4 Address:\t%s\n" $ipv4_address
+printf "IPv6 Address:\t%s\n" $ipv6_address
+echo
