@@ -1,33 +1,156 @@
 #!/bin/bash
 
-date=`date`
-load=`cat /proc/loadavg | awk '{print $1}'`
-ipv4_address=`ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}'`
-ipv6_address=`ip -6 addr show eth0 | grep -oP '(?<=inet6\s)[\da-f:]+'`
-root_usage=`df -h / | awk '/\// {print $(NF-1)}'`
-memory_usage=`free -m | awk '/^Mem/ {printf("%u%%", 100*$3/$2);}' <(free -m)`
-swap_usage=`free -m | awk '/Swap/ { printf("%3.1f%%", $3/$2*100) }'`
-arch=`uname -m`
-platform=`uname -o`
-kernel=`uname -r`
-users=`users | wc -w`
-time=`uptime | grep -ohe 'up .*' | sed 's/,/\ hours/g' | awk '{ printf $2" "$3 }'`
-processes=`ps aux | wc -l`
- 
-echo "Date: $date"
-echo
-echo "System Information"
-printf "Architecture:\t%s\n" $arch
-printf "Platform:\t%s\n" $platform
-printf "Kernel Version:\t%s\n" $kernel
-echo
-echo "Resource Information"
-printf "System Load:\t%s\n" $load
-printf "Memory Usage:\t%s\tSystem Uptime:\t%s\n" $memory_usage "$time"
-printf "Usage On /:\t%s\tSwap Usage:\t%s\n" $root_usage $swap_usage
-printf "Local Users:\t%s\tProcesses:\t%s\n" $users $processes
-echo
-echo "Network Information"
-printf "IPv4 Address:\t%s\n" $ipv4_address
-printf "IPv6 Address:\t%s\n" $ipv6_address
-echo
+LC_ALL=C
+LC_NUMERIC=C
+
+# CORE COUNT
+declare -i core_count=1
+core_count=$(cat /sys/devices/system/cpu/kernel_max 2> /dev/null)+1
+
+# TEXT COLOURS
+black_text=$(tput setaf 0)   # Black
+red_text=$(tput setaf 1)     # Red
+green_text=$(tput setaf 2)   # Green
+yellow_text=$(tput setaf 3)  # Yellow
+blue_text=$(tput setaf 4)    # Blue
+magenta_text=$(tput setaf 5) # Magenta
+cyan_text=$(tput setaf 6)    # Cyan
+white_text=$(tput setaf 7)   # White
+reset_text=$(tput sgr0)      # Reset to default color
+
+# TEXT STYLES
+bold_text=$(tput bold)
+blinking_text=$(tput blink)
+dim_text=$(tput dim)
+
+# HEATMAP GENERATOR
+HeatmapGenerator () {
+if [ -z "$2" ]; then
+    load=$(printf "%.0f" "$1")
+else
+    load=$(printf "%.0f" "$(echo "$1 $2" | awk '{print ($1 / $2) * 100}')")
+fi
+
+if [ "${load}" -lt 75 ]; then
+    out=${green_text}
+elif [ "${load}" -lt 90 ]; then
+    out=${yellow_text}
+else
+    out=${red_text}
+fi
+
+echo "$out"
+}
+
+# BAR GENERATOR
+BarGenerator() {
+    barNumber=$(printf %.f "$(echo "$1 $2" | awk '{print ($1 / 100) * $2}')")
+    frontFill=$(for i in $(seq "$barNumber"); do echo -n '■'; done)
+    backfillNumber=$(($2-barNumber))
+if [ "$barNumber" -lt "$2" ]; then
+    if [ "$3" = "color" ]; then
+        backFill=$(for i in $(seq $backfillNumber); do echo -n '■'; done)
+        out="${red_text}${frontFill}${green_text}${backFill}${reset_text}"
+    else
+        backFill=$(for i in $(seq $backfillNumber); do echo -n '·'; done)
+        out="${frontFill}${reset_text}${backFill}"
+    fi
+
+else
+    out=$(for i in $(seq "$2"); do echo -n '■'; done)
+fi
+
+echo "$out"
+}
+
+# SYSTEM UPTIME
+system_uptime=$(uptime | awk -F'( |,|:)+' '{if ($7=="min") m=$6; else {if ($7~/^day/){if ($9=="min") {d=$6;m=$8} else {d=$6;h=$8;m=$9}} else {h=$6;m=$7}}} {print d+0,"days,",h+0,"hours,",m+0,"minutes"}')
+if [ -f /sys/class/thermal/thermal_zone0/temp ]; then
+    cpu=$(</sys/class/thermal/thermal_zone0/temp)
+else
+    cpu=0
+fi
+
+# SYSTEM TEMPERATURE
+if [ "${TEMPERATUREUNIT}" == "F" ]; then
+    temperature="$(printf %.1f "$(echo "${cpu}" | awk '{print $1 * 9 / 5000 + 32}')")°F"
+elif [ "${TEMPERATUREUNIT}" == "K" ]; then
+    temperature="$(printf %.1f "$(echo "${cpu}" | awk '{print $1 / 1000 + 273.15}')")°K"
+else
+    temperature="$(printf %.1f "$(echo "${cpu}" | awk '{print $1 / 1000}')")°C"
+fi
+
+# CPU LOAD HEATMAP
+read -r -a cpu_load < /proc/loadavg
+cpu_load_1_heatmap=$(HeatmapGenerator "${cpu_load[0]}" "${core_count}")
+cpu_load_5_heatmap=$(HeatmapGenerator "${cpu_load[1]}" "${core_count}")
+cpu_load_15_heatmap=$(HeatmapGenerator "${cpu_load[2]}" "${core_count}")
+cpu_percent=$(printf %.1f "$(echo "${cpu_load[0]} ${core_count}" | awk '{print ($1 / $2) * 100}')")
+
+# CPU TEMPERATURE HEATMAP
+if [ ${cpu} -gt 85000 ]; then
+    temp_heatmap=${blinking_text}${red_text}
+elif [ ${cpu} -gt 80000 ]; then
+    temp_heatmap=${red_text}
+elif [ ${cpu} -gt 70000 ]; then
+    temp_heatmap=${yellow_text}
+elif [ ${cpu} -gt 60000 ]; then
+    temp_heatmap=${green_text}
+else
+    temp_heatmap=${cyan_text}
+fi
+
+# GIANT CLUSTERFUCK OF VARIABLES
+memory_percent=$(awk '/MemTotal:/{total=$2} /MemFree:/{free=$2} /Buffers:/{buffers=$2} /^Cached:/{cached=$2} END {printf "%.1f", (total-free-buffers-cached)*100/total}' '/proc/meminfo')
+memory_heatmap=$(HeatmapGenerator "${memory_percent}")
+cpu_bar=$(BarGenerator "${cpu_percent}" 10)
+memory_bar=$(BarGenerator "${memory_percent}" 10)
+eth_address=$(ip -4 addr show eth0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+eth_address_ipv6=$(ip -6 addr show eth0 | grep -oP '(?<=inet6\s)[\da-f:]+')
+wlan_address=$(ip -4 addr show wlan0 | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
+wlan_address_ipv6=$(ip -6 addr show wlan0 | grep -oP '(?<=inet6\s)[\da-f:]+')
+local_hostname=$(hostname)
+local_gateway=$(ip r | grep 'default' | awk '{print $3}')
+arch=$(uname -m)
+distribution=$(lsb_release -s -d)
+platform=$(uname -o)
+kernel=$(uname -r)
+processes=$(ps aux | wc -l)
+users=$(users | wc -w)
+date=$(date)
+boot_percent=$(df -h /boot | awk '/\// {print $(NF-1)}')
+root_percent=$(df -h / | awk '/\// {print $(NF-1)}')
+log_percent=$(df -h /var/log | awk '/\// {print $(NF-1)}')
+swap_percent=$(free -m | awk '/Swap/ { printf("%3.0f%%", $3/$2*100) }')
+boot_bar=$(BarGenerator "${boot_percent}" 40)
+root_bar=$(BarGenerator "${root_percent}" 40)
+log_bar=$(BarGenerator "${log_percent}" 40)
+swap_bar=$(BarGenerator "${swap_percent}" 40)
+
+# DISPLAY FORMATTING
+echo "${green_text}${bold_text}SYSTEM INFORMATION${reset_text}"
+printf " %-16s%-43s\\n" "Architecture:" "${arch}"
+printf " %-16s%-43s\\n" "Distribution:" "${distribution}"
+printf " %-16s%-43s\\n" "Kernel Version:" "${kernel}"
+printf " %-16s%-43s\\n" "Platform:" "${platform}"
+printf " %-16s%-43s\\n" "Processes:" "${processes}"
+printf " %-16s%-43s\\n" "Users:" "${users}"
+printf " %-16s%-43s\\n" "Date:" "${date}"
+printf " %-10s%-49s\\n" "Uptime:" "${system_uptime}"
+printf " %-10s${temp_heatmap}%-20s${reset_text}" "CPU Temp:" "${temperature}"
+printf " %-10s${cpu_load_1_heatmap}%-4s${reset_text}, ${cpu_load_5_heatmap}%-4s${reset_text}, ${cpu_load_15_heatmap}%-4s${reset_text}\\n" "CPU Load:" "${cpu_load[0]}" "${cpu_load[1]}" "${cpu_load[2]}"
+printf " %-10s[${memory_heatmap}%-10s${reset_text}] %-6s %-10s[${cpu_load_1_heatmap}%-10s${reset_text}] %-5s\\n" "Memory:" "${memory_bar}" "${memory_percent}%" "CPU Load:" "${cpu_bar}" "${cpu_percent}%"
+printf "\n"
+echo "${green_text}${bold_text}NETWORK INFORMATION${reset_text}"
+printf " %-16s%-43s\\n" "Hostname:" "${local_hostname}"
+printf " %-16s%-43s\\n" "IPv4 Address:" "${eth_address}"
+printf " %-16s%-43s\\n" "IPv4 Address:" "${wlan_address}"
+printf " %-16s%-43s\\n" "IPv6 Address:" "${eth_address_ipv6}"
+printf " %-16s%-43s\\n" "IPv6 Address:" "${wlan_address_ipv6}"
+printf " %-16s%-43s\\n" "Gateway:" "${local_gateway}"
+printf "\n"
+echo "${green_text}${bold_text}DISK INFORMATION${reset_text}"
+printf " %-10s[${green_text}%-42s${reset_text}] %-6s\\n" "Boot:" "${boot_bar}" "${boot_percent}"
+printf " %-10s[${green_text}%-42s${reset_text}] %-6s\\n" "Root:" "${root_bar}" "${root_percent}"
+printf " %-10s[${green_text}%-42s${reset_text}] %-6s\\n" "Log:" "${log_bar}" "${log_percent}"
+printf " %-10s[${green_text}%-42s${reset_text}]%-7s\\n" "Swap:" "${swap_bar}" "${swap_percent}"

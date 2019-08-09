@@ -1,3 +1,13 @@
 #!/bin/sh
 
+# Scrape up any other motd shenanigans that may be going on.
+
 [ -f /etc/motd.tail ] && cat /etc/motd.tail || true
+
+# DELAYED EXIT
+# - if our remote session launches screen immediately, or hooks an existing session, it will refresh the
+#   shell and eat our motd without us seeing it.
+#   delay exit for four seconds, which in testing appears to be closer to five, and just hovering around
+#   the borders edges of the spectrum between not long enough and too long.
+# - if you're not using a terminal muxer, adjust sleep period or comment out entirely to suit.
+sleep 4

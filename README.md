@@ -4,28 +4,40 @@ a set of scipts to enhance the basic motd experience
 
 ## Example
 ```
-Enter passphrase for key '/home/saint/.ssh/id_rsa': 
-Verification code: 
+SYSTEM INFORMATION
+ Architecture:   armv7l                                     
+ Distribution:   Raspbian GNU/Linux 10 (buster)             
+ Kernel Version: 4.19.58-v7+                                
+ Platform:       GNU/Linux                                  
+ Processes:      149                                        
+ Users:          1                                          
+ Date:           Fri Aug  2 23:41:23 NZST 2019              
+ Uptime:   0 days, 0 hours, 32 minutes                      
+ CPU Temp: 53.7°C              CPU Load: 0.40, 0.21, 0.31
+ Memory:   [■■■■■·····] 51.2%  CPU Load: [■·········] 10.0%
 
-Raspbian GNU/Linux 10 (buster)
-Date: Fri Jul 26 12:26:27 NZST 2019
+NETWORK INFORMATION
+ Hostname:       raspberrypi-desktop                        
+ IPv4 Address:   192.168.1.10                               
+ IPv4 Address:   192.168.1.11                               
+ IPv6 Address:   fe80::653f:dc6:a998:752b                   
+ IPv6 Address:   fe80::260e:657:5268:2e62                   
+ Gateway:        192.168.1.1                                
 
-System Information
-Architecture:	armv7l
-Platform:	GNU/Linux
-Kernel Version:	4.19.58-v7+
+DISK INFORMATION
+ Boot:     [■■■■■■··································] 16%   
+ Root:     [■■■■■■■■■■■■■■■■■■······················] 44%   
+ Log:      [■■■■■■··································] 16%   
+ Swap:     [■·······································]  2%   
+```
 
-Resource Information
-System Load:	0.00
-Memory Usage:	8%	System Uptime:	10 days
-Usage On /:	18%	Swap Usage:	0.0%
-Local Users:	0	Processes:	121
-
-Network Information
-IPv4 Address:	192.168.1.20
-IPv6 Address:	fe80::35e6:baaa:8207:c9b4
-
-Last login: Tue Jul 23 00:15:18 2019 from 192.168.1.100
+## Installation
+```
+cd /etc/update-motd.d/
+sudo wget https://raw.githubusercontent.com/saint-lascivious/motd.d/master/00-header
+sudo wget https://raw.githubusercontent.com/saint-lascivious/motd.d/master/10-sysinfo
+sudo wget https://raw.githubusercontent.com/saint-lascivious/motd.d/master/99-footer
+sudo chmod +x *
 ```
 
 ## Documentation
